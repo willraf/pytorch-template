@@ -1,0 +1,25 @@
+# Default configuration file
+# Any parameters redifined in main.yaml will override these defaults.
+# Parameters left null here are required to be set in main.yaml.
+
+experiment:
+  name: default_experiment
+  random_seed: 42
+
+
+
+data:
+
+
+model:
+
+
+training:
+
+
+evaluation:
+
+
+inference:
+
+

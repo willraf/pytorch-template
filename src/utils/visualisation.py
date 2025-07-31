@@ -4,79 +4,66 @@ Module visualisation
 Contains methods for visualisation of EMG and related data
 
 Usage:
-    from src.utils.visualisation import visualise_EMG
+    import src.utils.visualisation as vis
+    vis.plot_emg(emg_data, fpath="path/to/save/plot.png")
 
-    visualise_EMG(data)
+Author:
+    Will Raftery   
+
+Date:
+    31/07/2025
 
 """
 
 import matplotlib.pyplot as plt
 import numpy as np
+from pathlib import Path
+import logging
+from typing import Union, Optional
+
+import torch 
 
 
-def visualise_spike_trains(spike_trains):
-    """
-    Visualise a number of spike trains
+def _convert_to_numpy(data: Union[np.ndarray, torch.Tensor]) -> np.ndarray:
+    """Convert torch.Tensor to numpy array if needed."""
+    if isinstance(data, torch.Tensor):
+        return data.detach().cpu().numpy()
+    return data
 
+
+def _save_or_show(fig: plt.Figure, fpath: Union[str, Path] = None) -> None:
+    """Save figure to file if path provided, otherwise show it."""
+    if fpath:
+        fpath = Path(fpath)
+        fpath.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(fpath)
+        logging.info(f"Saved plot to {fpath}")
+    else:
+        plt.show()
+    plt.close(fig)
+
+
+# EMG Signal Visualization
+def plot_emg(emg: Union[np.ndarray, torch.Tensor], fpath: Optional[str] = None) -> None:
+    """Plot EMG signals from multiple channels.
+    
     Args:
-        spike_trains (torch.Tensor): Shape (T,).
-            NOTE this is different dtype to visualise functions within data_generator
+        emg: EMG signals of shape (num_channels, time_steps)
+        fpath: Optional path to save the plot
     """
+    emg = _convert_to_numpy(emg)
+    num_channels, time_steps = emg.shape
+    
+    fig, ax = plt.subplots(figsize=(5, 5))
+    time = np.arange(time_steps)
+    
+    for ch in range(num_channels):
+        ax.plot(time, emg[ch] + ch * 5, label=f'Channel {ch+1}')
+    
+    ax.set_title('EMG Signals')
+    ax.set_xlabel('Time')
+    ax.set_ylabel('Amplitude + Offset')
+    ax.grid(False)
+    
+    _save_or_show(fig, fpath)
 
-    num_sources, num_samples = spike_trains.shape[0], spike_trains.shape[1]
-
-    fig, axs = plt.subplots(num_sources, 1, figsize=(8, 8), sharey=True)
-
-    x = np.arange(num_samples)
-
-    i = 0
-    for source in spike_trains:
-        axs[i].plot(x, source, 'o', color="blue")
-        spike_times = np.nonzero(source)
-        axs[i].vlines(spike_times, ymin=0, ymax=1, color='blue', linestyle='-')
-        i += 1
-
-    plt.ylim(0, 3)
-    plt.show()
-    return
-
-
-def visualise_filters(filters):
-    """
-    Visualise a number of filters
-    """
-    num_filters = filters.shape[0] * filters.shape[1]
-    L = filters.shape[2]
-    fig, axs = plt.subplots(num_filters, 1, figsize=(8, 8), sharey=True)
-
-    x = np.arange(L)
-
-    i = 0
-    for c in filters:
-        for s in c:
-            axs[i].plot(x, s, "o", color="green")
-            i += 1
-
-    plt.show()
-    return
-
-
-def visualise_EMG(signals):
-    """
-    Visualise a number of EMG signals
-    """
-    num_channels, num_samples = signals.shape[0], signals.shape[1]
-
-    fig, axs = plt.subplots(num_channels, 1, figsize=(8, 8), sharey=True)
-
-    x = np.arange(num_samples)
-
-    i = 0
-    for channel in signals:
-        axs[i].plot(x, channel, color="green")
-        channel_times = channel
-        axs[i].vlines(channel_times, ymin=0, ymax=1, color='green', linestyle='-')
-        i += 1
-
-    plt.show()
-    return

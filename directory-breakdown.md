@@ -101,5 +101,5 @@ Example (workflow) usage of how a user might train a model and get some results.
 __Alternative__
 
 3. Run full pipeline using a config
-	`python scripts/train-test.py config.yaml`
+	`python scripts/main.py --config configs/main.yaml --default configs/default.yaml`
 4. Model will be trained, with logs, checkpoints, visualisations and results saved to `experiments/model-name/` The `config.yaml` file is also be copied into the experiments and models folders..

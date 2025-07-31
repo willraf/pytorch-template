@@ -71,4 +71,5 @@ If changing environment dependamcies (e.g. with `pip install numpy`):
 
 ## Resources used
 [PyTorch Framework](https://github.com/branislav1991/PyTorchProjectFramework/tree/master)
+
 [Config files and wrappers](https://jonnyjxn.medium.com/how-to-config-your-machine-learning-experiments-without-the-headaches-bb379de1b957)

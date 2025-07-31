@@ -1,42 +1,54 @@
 # Directory Breakdown
+`git ls-files | tree --fromfile`
+
 ```
 .
-├── README.md
-├── config
-│   └── config.yaml
-├── experiments
-├── figures
+├── configs
+│   ├── default.yaml
+│   └── main.yaml
+├── directory-breakdown.md
+├── .gitignore
 ├── notebooks
-│   └── data_generation.ipynb
+│   └── example_notebook.ipynb
+├── README.md
 ├── requirements.txt
 ├── scripts
-│   ├── evaluate.py
+│   ├── eval.py
+│   ├── main.py
+│   ├── predict.py
 │   └── train.py
 ├── setup.py
 ├── src
-│   ├── __init__.py
 │   ├── data
+│   │   ├── base_dataset.py
+│   │   ├── curriculum_scheduler.py
+│   │   ├── example_dataset.py
 │   │   ├── __init__.py
-│   │   ├── data_generation.py
-│   │   ├── data_generator.py
-│   │   ├── dataset.py
-│   │   └── generate_data.py
+│   │   └── setup.py
+│   ├── __init__.py
 │   ├── models
-│   │   └── __init__.py
+│   │   ├── example_model.py
+│   │   ├── __init__.py
+│   │   └── setup.py
 │   └── utils
-│       └── __init__.py
+│       ├── config_wrapper.py
+│       ├── __init__.py
+│       ├── utils.py
+│       └── visualisation.py
 └── tests
-    ├── test_data.py
-    └── test_models.py
+    └── example_test.py
+
 ```
 ## config/
-Contains configuration files (e.g.,model, hyperparameters, data etc.) for each experiment
+Contains configuration files (e.g.,model, hyperparameters, data etc.) for each experiment.
+- main.yaml: Parameters for full pipeline. These can optionally be split into train.yaml, eval.yaml etc.
+- default.yaml: Defines default params. Any parameters redifined in main.yaml will override these defaults. Parameters left null here are required to be set in main.yaml.
 
 ## experiments/
 Holds data and results around a single experiment. This includes a copy of the config file used, logs, checkpoints, results and visual outputs (e.g. loss plot).
 
 ## figures/
-Contains visualisations generated
+Contains general visualisations generated
 
 ## notebooks/
 Stores Jupyter notebooks used for visualisation, prototyping and examples. 
@@ -47,6 +59,16 @@ These will usually require a config file to specify how to run.
 
 ## src/
 Contains core project code, such as for data processing and models.
+
+### src/data/
+__init__.py exposes the setup_data function in setup.py. This automatically instantiates a dataset from config file and returns dataloaders
+
+### src/models/
+Similar to data but with setup_model funciton
+
+### src/utils/
+- config_wrapper.py: Contains a class to wrap the config file for easier retreval and default setting. 
+- utils.py: Contains useful functions used by train, eval and/or predict
 
 ## test/
 Tests

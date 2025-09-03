@@ -16,16 +16,15 @@ Date:
 
 import argparse
 import logging
+from omegaconf import OmegaConf
 import tqdm
 import time
 from pathlib import Path
-import shutil
 import csv
-import yaml
+
 
 # TODO remove generic utils import *
 from src.utils.utils import *
-from src.utils.config_wrapper import Config
 import src.utils.visualisation as vis
 from src.data import setup_data
 from src.models import setup_model
@@ -49,11 +48,11 @@ def save_results(save_dir, epoch, train_loss, val_loss, best_val_loss):
 
 def main(cfg, overwrite=False):
 
-    random_seed = cfg.get("experiment/random_seed", default=None, required=True)
-    patience = cfg.get("training/patience", default=None, required=False)
-    log_interval = cfg.get("logging/log_interval", default=None, required=False)
-    num_epochs = cfg.get("training/num_epochs", default=None, required=True)
-    plot_examples_flag = cfg.get("experiment/plot_examples", default=False, required=False)
+    random_seed = cfg.experiment.random_seed
+    patience = cfg.training.patience
+    log_interval = cfg.logging.log_interval
+    num_epochs = cfg.training.epochs
+    plot_examples_flag = cfg.experiment.plot_examples
 
     # setup basic logger
     logging.basicConfig(
@@ -73,7 +72,7 @@ def main(cfg, overwrite=False):
     train_loader = dataloaders['train']
     val_loader = dataloaders['val']
 
-    model = setup_model(cfg, device=device, mode='train')
+    model = setup_model(cfg, device=device)
 
     optimizer = setup_optimiser(cfg, model)
 
@@ -228,10 +227,7 @@ def validate(model, test_loader, loss_function, plot_examples=False, epoch=None,
             val_loss += loss.item()
 
     if plot_examples:
-        # Visualise the first example in the batch
-        # TODO improve how we handle visualisation
-        vis_data = test_loader.dataset.dataset.get_visualisation_bundle(inputs, targets, outputs)
-        vis.plot_val(vis_data, fpath=save_dir/'figures'/f'val_epoch_{epoch}.png')
+        vis.plot_emg(targets, outputs, fpath=save_dir / "figures" / f'val_epoch_{epoch}.png')
 
     # Divide by total number of samples to get average loss
     val_loss /= num_batches
@@ -246,5 +242,6 @@ if __name__ == "__main__":
     parser.add_argument('--overwrite', action='store_true')
     args = parser.parse_args()
 
-    config = Config(args.config, default_path=args.default)
-    main(config, overwrite=args.overwrite)
+    cfg = load_config(args.config, default_path=args.default)
+    
+    main(cfg, overwrite=args.overwrite)

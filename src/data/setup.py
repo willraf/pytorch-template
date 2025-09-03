@@ -16,7 +16,7 @@ Date:
 """
 
 import importlib
-from src.utils.config_wrapper import Config
+from omegaconf import OmegaConf
 from src.data.curriculum_scheduler import CurriculumScheduler
 
 from torch.utils.data import DataLoader, random_split
@@ -26,10 +26,10 @@ import logging
 
 def find_dataset_using_name(dataset_name: str):
     """
-    Import the module "datasets/[dataset_name]_dataset.py".
+    Import the module "[dataset_name]_dataset.py".
     The class [DatasetName]Dataset must exist inside (future: and inherit from BaseDataset).
     """
-    module_name = f"datasets.{dataset_name}_dataset"
+    module_name = f"src.data.{dataset_name}_dataset"
     try:
         datasetlib = importlib.import_module(module_name)
     except ModuleNotFoundError as e:
@@ -45,31 +45,31 @@ def find_dataset_using_name(dataset_name: str):
     raise ImportError(f"Expected class '{target_class_name}' in '{module_name}'.")
 
 
-def setup_data(cfg: Config, mode: str = "train"):
+def setup_data(cfg: OmegaConf, mode: str = "train"):
     """
     Setup data loaders and scheduler based on the configuration.
     
     Args:
-        cfg (Config): Configuration object
+        cfg (OmegaConf): Configuration object
         mode (str): One of ["train", "val", "test", "predict"]
 
     Returns:
         dataloaders (dict): Dict of DataLoaders (train/val/test) as appropriate
         scheduler (optional): Curriculum scheduler for training (if applicable)
     """
-    num_workers = cfg.get("data/num_workers", default=0, required=False)
+    num_workers = cfg.data.num_workers
+    dataset_name = cfg.data.name
 
     dataloaders = {}
     scheduler = None
 
     # Dynamically load dataset class
-    dataset_name = cfg.get("dataset/name")
     dataset_class = find_dataset_using_name(dataset_name)
 
     if mode == "train":
-        val_split = cfg.get("training/val_split", required=True)
-        train_batch_size = cfg.get("training/batch_size", required=True)
-        val_batch_size = cfg.get("validation/batch_size", required=True)
+        val_split = cfg.training.val_split
+        train_batch_size = cfg.training.batch_size
+        val_batch_size = cfg.validation.batch_size
 
         dataset = dataset_class(cfg)
 
@@ -89,11 +89,11 @@ def setup_data(cfg: Config, mode: str = "train"):
             num_workers=num_workers
         )
 
-        if cfg.get("data/curriculum/flag", default=False):
+        if cfg.data.curriculum.flag:
             scheduler = CurriculumScheduler(
                 dataset=dataset,
-                milestones=cfg.get("data/curriculum/milestones", default=[]),
-                parameters=cfg.get("data/curriculum/parameters", default={})
+                milestones=cfg.data.curriculum.milestones,
+                parameters=cfg.data.curriculum.parameters
             )
         else:
             scheduler = None

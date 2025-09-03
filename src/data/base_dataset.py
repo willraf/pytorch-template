@@ -16,14 +16,15 @@ Date:
 """
 from abc import ABC, abstractmethod
 
+from omegaconf import OmegaConf
+
 from torch.utils.data import Dataset
-from src.utils.config_wrapper import Config
 
 class BaseDataset(Dataset, ABC):
     """This class is an abstract base class (ABC) for datasets.
     """
 
-    def __init__(self, cfg: Config):
+    def __init__(self, cfg: OmegaConf):
         super().__init__()
         self.cfg = cfg
 

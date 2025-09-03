@@ -19,10 +19,11 @@ from pathlib import Path
 import logging
 import csv
 
+from omegaconf import OmegaConf
+
 from typing import Union, Optional, Callable
 
 from src.utils.utils import *
-from src.utils.config_wrapper import Config
 import src.utils.visualisation as vis
 from src.data import setup_data
 from src.models import setup_model
@@ -47,10 +48,9 @@ def save_results(save_dir, results_dict):
 
 def main(cfg, overwrite=False):
 
-    random_seed = cfg.get("experiment/random_seed", default=None, required=True)
-    checkpoint_path = cfg.get("model/checkpoint", default=None, required=True)
-    plot_examples_flag = cfg.get("experiment/plot_examples", default=True, required=False)
-
+    random_seed = cfg.experiment.random_seed
+    checkpoint_path = cfg.model.checkpoint
+    plot_examples_flag = cfg.experiment.plot_examples
 
     # setup basic logger
     logging.basicConfig(
@@ -76,7 +76,7 @@ def main(cfg, overwrite=False):
     
     # Test model
     results = test(
-        model, test_loader, loss_function, plot_examples=cfg['experiment']['plot_examples'], save_dir=save_dir
+        model, test_loader, loss_function, plot_examples=plot_examples_flag, save_dir=save_dir
     )
     logging.info(f"Test Loss: {results['loss']:.6f}")
     save_results(save_dir, results)
@@ -132,5 +132,6 @@ if __name__ == "__main__":
     parser.add_argument('--overwrite', action='store_true')
     args = parser.parse_args()
 
-    config = Config(args.config, default_path=args.default)
-    main(config, overwrite=args.overwrite)
+    cfg = load_config(args.config, default_path=args.default)
+
+    main(cfg, overwrite=args.overwrite)

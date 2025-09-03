@@ -1,15 +1,35 @@
 # Configuration settings
 
+experiment:
+  name: experiment
+  random_seed: 42
+  plot_examples: True
+
+
 data:
+  name: example
+  num_workers: 4
 
 
 model:
-
+  name: example
+  checkpoint: null
 
 training:
+  optimizer: "adam"
+  batch_size: 64
+  epochs: 10
+  learning_rate: 0.01
+  patience: 10
+  val_split: 0.2
+
+validation:
+  batch_size: 64
+
 
 
 evaluation:
+
 
 
 inference:

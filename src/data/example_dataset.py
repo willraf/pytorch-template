@@ -1,4 +1,5 @@
-from src.utils.config_wrapper import Config
+from omegaconf import OmegaConf
+
 from src.data import BaseDataset
 
 class ExampleDataset(BaseDataset):
@@ -7,7 +8,7 @@ class ExampleDataset(BaseDataset):
     This is a placeholder for an actual dataset implementation.
     """
 
-    def __init__(self, cfg: Config):
+    def __init__(self, cfg: OmegaConf):
         super().__init__(cfg)
         # Initialize dataset-specific attributes here
 

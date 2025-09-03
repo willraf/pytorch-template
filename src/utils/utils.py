@@ -8,13 +8,29 @@ import torch
 import shutil
 import csv
 
-from src.utils.config_wrapper import Config
+from omegaconf import OmegaConf
 
 from typing import Union, Optional, Callable
 
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.nn as nn
+
+def load_config(user_path: Path, default_path: Path) -> OmegaConf:
+    """
+    Load and merge user and default configuration files.
+
+    Args:
+        user_path (Path): Path to the user configuration file.
+        default_path (Path): Path to the default configuration file.
+
+    Returns:
+        OmegaConf: Merged configuration object.
+    """
+    user_config = OmegaConf.load(user_path)
+    default_config = OmegaConf.load(default_path)
+    merged_config = OmegaConf.merge(default_config, user_config)
+    return merged_config
 
 
 def set_seed(seed: int):
@@ -26,7 +42,7 @@ def set_seed(seed: int):
     random.seed(seed)
 
 
-def get_experiment_directory(cfg: Config) -> Path:
+def get_experiment_directory(cfg: OmegaConf) -> Path:
     """Create/get a directory for the experiment with a structured naming convention.
     
     Args:
@@ -35,13 +51,12 @@ def get_experiment_directory(cfg: Config) -> Path:
     Returns:
         Path: Path to the experiment directory
     """
-    save_flag = cfg.get('experiment/save', default=True)
-    experiment_name = cfg.get('experiment/name', default=None)
-    model_name = cfg.get('model/name', default=None)
+    save_flag = cfg.experiment.save
+    experiment_name = cfg.experiment.name
+    model_name = cfg.model.name
 
     if save_flag:
         if not experiment_name:
-            model_name = cfg['model']['name']
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             experiment_name = f"{timestamp}_{model_name}"
         experiment_dir = Path("experiments") / experiment_name
@@ -70,13 +85,7 @@ def setup_logger(experiment_dir: Union[str, Path]):
     )
 
 
-def change_log_file(experiment_dir: Union[str, Path], new_log_file: str):
-    
-    log_dir = Path(experiment_dir) / "logs"
-    # This line should be redundant
-    log_dir.mkdir(parents=True, exist_ok=True)
-
-    log_fpath = log_dir / new_log_file
+def change_log_file(log_fpath: Union[str, Path]):
 
     logger = logging.getLogger()  # Get the root logger
     
@@ -92,10 +101,10 @@ def change_log_file(experiment_dir: Union[str, Path], new_log_file: str):
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
     
-    logging.info(f"Log file changed to: {new_log_file}")
+    logging.info(f"Log file changed to: {log_fpath}")
 
 
-def setup_loss_function(cfg: Config = None, loss_type: str = None) -> Callable:
+def setup_loss_function(cfg: OmegaConf = None, loss_type: str = None) -> Callable:
     """
     Create loss function from config file
 
@@ -108,7 +117,7 @@ def setup_loss_function(cfg: Config = None, loss_type: str = None) -> Callable:
         loss_function (function): The loss function
     """
     if loss_type is None:
-        loss_type = cfg.get('training/loss_function', required=True)
+        loss_type = cfg.training.loss_function
 
     if loss_type == 'mse':
         loss_function = F.mse_loss
@@ -118,15 +127,14 @@ def setup_loss_function(cfg: Config = None, loss_type: str = None) -> Callable:
     return loss_function
 
 
-def setup_optimiser(model: nn.Module, cfg: Config) -> optim.Optimizer:
+def setup_optimiser(cfg: OmegaConf, model: nn.Module) -> optim.Optimizer:
     """
     Create optimiser from config file
     """
-
-    optimizer_name = cfg.get('training/optimizer', required=True)
-    learning_rate = cfg.get('training/learning_rate', required=True)
-    momentum = cfg.get('training/momentum', required=False)
-    weight_decay = cfg.get('training/weight_decay', required=False)
+    optimizer_name = cfg.training.optimizer
+    learning_rate = cfg.training.learning_rate
+    momentum = cfg.training.momentum
+    weight_decay = cfg.training.weight_decay
 
     if optimizer_name == 'sgd':
         optimizer = optim.SGD(
@@ -207,7 +215,7 @@ def load_checkpoint(checkpoint_path: Union[str, Path],
         raise FileNotFoundError(f"No checkpoint found at '{checkpoint_path}'")
 
 
-def setup_save_dir(cfg: Config,
+def setup_save_dir(cfg: OmegaConf,
                     overwrite: bool = False, 
                     mode: str = "train"):
     """
@@ -216,7 +224,7 @@ def setup_save_dir(cfg: Config,
     If save is False, results are still saved to a TEMP directory and will be overwritten each run
 
     Args:
-        cfg (Config): Configuration object
+        cfg (OmegaConf): Configuration object
         overwrite (bool): Whether to overwrite existing directories
         mode (str): Mode of operation, either "train" "eval" or "predict"
 
@@ -225,7 +233,7 @@ def setup_save_dir(cfg: Config,
     """
     # Create experiment directory
     experiment_dir = Path(get_experiment_directory(cfg))
-    save_dir = experiment_dir / mode
+    save_dir = experiment_dir / mode 
 
     # Handle existing training directory
     if save_dir.exists():
@@ -250,8 +258,7 @@ def setup_save_dir(cfg: Config,
     change_log_file(save_dir / f"{mode}.log")
 
     # Save a copy of the config file
-    cfg.save(save_dir / "config.yaml")
-
+    OmegaConf.save(cfg, save_dir / "config.yaml")
 
     if mode == "train":
 

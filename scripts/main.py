@@ -17,7 +17,9 @@ Date:
 import argparse
 import logging
 
-from src.utils.config_wrapper import Config
+from omegaconf import OmegaConf
+
+from src.utils.utils import load_config, get_experiment_directory
 
 from scripts.train import main as train
 from scripts.eval import main as evaluate
@@ -33,6 +35,9 @@ def main(cfg=None, overwrite=False):
             logging.StreamHandler()
         ]
     )
+
+    experiment_dir = get_experiment_directory(cfg)
+    OmegaConf.save(cfg, experiment_dir / "config.yaml")
 
     train_results = train(cfg, overwrite=overwrite)
     logging.info(f"Training completed with results: {train_results}")
@@ -56,5 +61,6 @@ if __name__ == "__main__":
     parser.add_argument('--overwrite', action='store_true')
     args = parser.parse_args()
 
-    config = Config(args.config, default_path=args.default)
-    main(config, overwrite=args.overwrite)
+    cfg = load_config(args.config, default_path=args.default)
+
+    main(cfg, overwrite=args.overwrite)

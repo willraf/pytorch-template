@@ -5,16 +5,17 @@ To add a custom model class called 'dummy', you need to add a file called 'dummy
 
 import importlib
 from torch.optim import lr_scheduler
-from src.utils.config_wrapper import Config
+from omegaconf import OmegaConf 
+
 import logging
 
 
 def find_model_using_name(model_name: str):
     """
-    Import the module "models/[model_name]_model.py".
+    Import the module "src/models/[model_name]_model.py".
     The class [ModelName]Model must exist inside and inherit from BaseModel.
     """
-    module_name = f"models.{model_name}_model"
+    module_name = f"src.models.{model_name}_model"
     try:
         modellib = importlib.import_module(module_name)
     except ModuleNotFoundError as e:
@@ -30,13 +31,14 @@ def find_model_using_name(model_name: str):
     raise ImportError(f"Expected class '{target_class_name}' in '{module_name}'.")
 
 
-def setup_model(cfg: Config):
+def setup_model(cfg: OmegaConf, device: str):
     """Create a model given the configuration.
 
     This is the main interface between this package and train.py/validate.py
     """
-    model_name = cfg.get("model/name", required=True)
+    model_name = cfg.model.name
     model = find_model_using_name(model_name)
     instance = model(cfg)
+    instance.to(device)
     logging.info("model [{0}] was created".format(type(instance).__name__))
     return instance

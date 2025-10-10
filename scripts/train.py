@@ -17,7 +17,7 @@ Date:
 import argparse
 import logging
 from omegaconf import OmegaConf
-import tqdm
+from tqdm import tqdm
 import time
 from pathlib import Path
 import csv

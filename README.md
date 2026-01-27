@@ -53,21 +53,6 @@ If changing environment dependamcies (e.g. with `pip install numpy`):
 `pip freeze > requirements.txt`
 `git add requirements.txt`
 
-## Git workflow 
-
-1. `git pull`
-
-2. Make changes
-
-3. `git add file_name`
-
-4. `git commit -m "commit message"`
-
-5. `git pull` (again)
-
-6. Fix any conflicts
-
-7. `git push`
 
 ## Resources used
 [PyTorch Framework](https://github.com/branislav1991/PyTorchProjectFramework/tree/master)

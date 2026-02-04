@@ -14,7 +14,7 @@ Check out directory-breakdown.md for in depth view of each file
 1. Fork the repo, then clone your fork locally
 2. Setup a new virtual environment
 3. Create a dataset in "src/datasets/[dataset_name]_dataset.py". The class [DatasetName]Dataset must exist inside. Check dataloader logic in "src/datasets/setup.py"
-4. Create a model in "src/datasets/[model_name]_dataset.py". The class [ModelName]Model must exist inside. Check logic in "src/model/setup.py" works
+4. Create a model in "src/models/[model_name]_dataset.py". The class [ModelName]Model must exist inside. Check logic in "src/model/setup.py" works
 5. In "src/utils/utils.py", finish implementing setup_loss_function() and setup_optimiser()
 6. Add to config files as you go
 7. Debug

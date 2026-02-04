@@ -2,6 +2,8 @@ from omegaconf import OmegaConf
 
 from src.data import BaseDataset
 
+import torch
+
 class ExampleDataset(BaseDataset):
     """
     Example dataset class inheriting from BaseDataset.
@@ -17,5 +19,7 @@ class ExampleDataset(BaseDataset):
         return 1000  # Example size
 
     def __getitem__(self, idx):
-        # Return a single data item
-        return {"data": idx, "label": idx % 10}  # Example data and label
+        # return random data example
+        x = torch.randint(0, 256, (32,), dtype=torch.float32)
+        y = torch.sum(x).fmod(2).unsqueeze(0).float()  # Example target
+        return x, y

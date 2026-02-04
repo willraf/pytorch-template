@@ -217,8 +217,8 @@ def validate(model, test_loader, loss_function, plot_examples=False, epoch=None,
             
             val_loss += loss.item()
 
-    if plot_examples:
-        vis.plot_emg(targets, outputs, fpath=save_dir / "figures" / f'val_epoch_{epoch}.png')
+    # if plot_examples:
+    #     vis.plot_emg(targets, outputs, fpath=save_dir / "figures" / f'val_epoch_{epoch}.png')
 
     # Divide by total number of samples to get average loss
     val_loss /= num_batches

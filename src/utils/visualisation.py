@@ -67,3 +67,37 @@ def plot_emg(emg: Union[np.ndarray, torch.Tensor], fpath: Optional[str] = None) 
     
     _save_or_show(fig, fpath)
 
+
+# Training Metrics Visualization
+def plot_loss_curves(train_loss: np.ndarray, val_loss: np.ndarray, 
+                    epochs: np.ndarray, fpath: Optional[str] = None) -> None:
+    """Plot training and validation loss curves.
+    
+    Args:
+        train_loss: Array of training losses
+        val_loss: Array of validation losses
+        epochs: Array of epoch numbers
+        fpath: Optional path to save the plot
+    """
+    train_loss = _convert_to_numpy(train_loss)
+    val_loss = _convert_to_numpy(val_loss)
+    epochs = _convert_to_numpy(epochs)
+
+    fig, ax = plt.subplots()
+    ax.set_xlabel('Epoch')
+    ax.set_ylabel('Loss')
+    line_train, = ax.plot([], [], 'r-', label='Train Loss')
+    line_val, = ax.plot([], [], 'b-', label='Validation Loss')
+    ax.legend()
+
+    # Interim plot update
+    line_train.set_xdata(epochs)
+    line_train.set_ydata(train_loss)
+    line_val.set_xdata(epochs)
+    line_val.set_ydata(val_loss)
+    ax.relim()
+    ax.autoscale_view()
+
+
+    
+    _save_or_show(fig, fpath)

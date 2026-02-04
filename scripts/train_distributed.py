@@ -71,6 +71,7 @@ class Trainer:
         self.overwrite = overwrite        
         # Setup GPU device and distributed training
         self.distributed, self.device, self.rank, self.local_rank = setup_distributed()
+        print(f"Process {self.rank} using device {self.device}, distributed={self.distributed}, local_rank={self.local_rank}")
         self.is_main = (self.rank == 0)
 
         self.save_dir = setup_save_dir(cfg, overwrite=overwrite, mode='train', is_main_process=self.is_main)
@@ -79,16 +80,17 @@ class Trainer:
         self.train_loader = dataloaders['train']
         self.val_loader = dataloaders['val']
         
-        self.model = setup_model(cfg, device=self.device, mode='train')
+        self.model = setup_model(cfg, device=self.device)
 
         self.optimiser = setup_optimiser(cfg, self.model)
         self.loss_fn = setup_loss_function(cfg)
 
         self.epochs_run = 0
         
-        if os.path.isfile(cfg.model.checkpoint):
-            checkpoint = load_checkpoint(cfg.model.checkpoint, self.model, self.optimiser)
-            self.epochs_run = checkpoint['epoch']
+        if cfg.model.checkpoint is not None:
+            if os.path.isfile(cfg.model.checkpoint):
+                checkpoint = load_checkpoint(cfg.model.checkpoint, self.model, self.optimiser)
+                self.epochs_run = checkpoint['epoch']
 
         if self.distributed:
             self.model = DDP(self.model, device_ids=[self.local_rank])
@@ -116,7 +118,7 @@ class Trainer:
             if self.distributed:
                 val_loss = self._reduce_mean(val_loss)
 
-
+            logging.info(f"Epoch {epoch}: Train Loss: {train_loss:.6f}, Val Loss: {val_loss:.6f}, Best Val Loss: {best_val_loss:.6f}")
             self._record_metrics(epoch, train_loss, val_loss, best_val_loss)
 
             # Early stopping and best model saving
@@ -216,6 +218,12 @@ class Trainer:
                     writer.writeheader()
                 writer.writerow(record)
 
+            if self.cfg.experiment.plot_examples:
+                train_losses = [m['train_loss'] for m in self.metrics]
+                val_losses = [m['val_loss'] for m in self.metrics]
+                epochs = [m['epoch'] for m in self.metrics]
+                vis.plot_loss_curves(train_losses, val_losses, epochs, fpath=self.save_dir / "figures" / "loss_curves.png")
+
 
     def _reduce_mean(self, value):
         """Get the average of a tensor over all processes."""
@@ -229,7 +237,8 @@ def main(cfg, overwrite=False):
     
     trainer = Trainer(cfg, overwrite=overwrite)
     trainer.train()
-    destroy_process_group()
+    if trainer.distributed:
+        destroy_process_group()
     
 
 if __name__ == "__main__":

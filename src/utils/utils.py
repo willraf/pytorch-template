@@ -31,12 +31,12 @@ def setup_distributed():
         local_rank (int)
     """
 
-    # --- Case 1: Distributed launch via torchrun ---
-    if "RANK" in os.environ and "LOCAL_RANK" in os.environ:
+    rank = int(os.environ.get("RANK", 0))
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    world_size = int(os.environ.get("WORLD_SIZE", 1))
 
-        rank = int(os.environ["RANK"])
-        local_rank = int(os.environ["LOCAL_RANK"])
-
+    # --- Distributed mode ---
+    if world_size > 1:
         torch.cuda.set_device(local_rank)
         init_process_group(backend="nccl")
 
@@ -44,15 +44,14 @@ def setup_distributed():
 
         return True, device, rank, local_rank
 
-    # --- Case 2: Single GPU ---
+    # --- Single GPU ---
     if torch.cuda.is_available():
         device = torch.device("cuda:0")
         return False, device, 0, 0
 
-    # --- Case 3: CPU ---
+    # --- CPU ---
     device = torch.device("cpu")
     return False, device, 0, 0
-
 
 def load_config(user_path: Path, default_path: Path) -> OmegaConf:
     """
@@ -114,6 +113,16 @@ def setup_logging(experiment_dir: Optional[Union[str, Path]] = None, is_main_pro
         logging.basicConfig(level=logging.ERROR)
         return
 
+    if experiment_dir is None:
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s - %(levelname)s - %(message)s",
+            handlers=[
+                logging.StreamHandler()
+            ]
+        )
+        return
+    
     log_dir = Path(experiment_dir) / "logs"
     # This line should be redundant
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -124,7 +133,7 @@ def setup_logging(experiment_dir: Optional[Union[str, Path]] = None, is_main_pro
         handlers=[
             logging.FileHandler(log_dir / "experiment.log"),
             logging.StreamHandler()
-        ] if experiment_dir else [logging.StreamHandler()]
+        ]
     )
 
 

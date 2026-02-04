@@ -133,5 +133,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     cfg = load_config(args.config, default_path=args.default)
+    setup_logging()
 
     main(cfg, overwrite=args.overwrite)

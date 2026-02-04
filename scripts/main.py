@@ -19,7 +19,7 @@ import logging
 
 from omegaconf import OmegaConf
 
-from src.utils.utils import load_config, get_experiment_directory
+from src.utils.utils import load_config, get_experiment_directory, setup_logging
 
 from scripts.train import main as train
 from scripts.eval import main as evaluate
@@ -27,15 +27,7 @@ from scripts.predict import main as predict
 
 
 def main(cfg=None, overwrite=False):
-    # setup basic logger
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-        handlers=[
-            logging.StreamHandler()
-        ]
-    )
-
+    
     experiment_dir = get_experiment_directory(cfg)
     OmegaConf.save(cfg, experiment_dir / "config.yaml")
 
@@ -62,5 +54,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     cfg = load_config(args.config, default_path=args.default)
+    setup_logging()
 
     main(cfg, overwrite=args.overwrite)

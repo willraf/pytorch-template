@@ -1,0 +1,245 @@
+"""
+Script train
+
+Handles model training and validation.
+
+Usage:
+    $ python -m scripts.train --config configs.train.yaml
+    $ python -m scripts.train --config configs.train.yaml --default configs/default.yaml
+    For distributed training:
+    $ python -m torch.distributed.run   --nproc_per_node=1 -m scripts.train --config configs/main.yaml
+
+Author: 
+    Will Raftery
+
+Date:
+    30/07/2025
+"""
+
+import argparse
+import logging
+from omegaconf import OmegaConf
+from tqdm import tqdm
+import time
+from pathlib import Path
+import csv
+
+
+# TODO remove generic utils import *
+from src.utils.utils import *
+import src.utils.visualisation as vis
+from src.data import setup_data
+from src.models import setup_model
+
+import torch
+
+import torch.multiprocessing as mp
+from torch.utils.data.distributed import DistributedSampler
+from torch.nn.parallel import DistributedDataParallel as DDP
+import torch.distributed as dist
+
+class Trainer:
+    """
+    Trainer class for (potentially distributed) training.
+    Responsible for training, validation, checkpointing, and metric logging.
+
+    Attributes:
+        cfg (OmegaConf): Configuration object
+        overwrite (bool): Whether to overwrite existing experiment directory
+        distributed (bool): Whether distributed training is enabled
+        device (torch.device): Device to run training on ("cpu" , "cuda", "cuda:<local_rank>")
+        rank (int): Global rank of the current process
+        local_rank (int): Local rank of the current process
+        is_main (bool): Whether this is the main process (rank 0)
+        save_dir (Path): Directory to save checkpoints and results
+        train_loader (DataLoader): DataLoader for training data
+        val_loader (DataLoader): DataLoader for validation data
+        model (torch.nn.Module): Model to be trained
+        optimiser (torch.optim.Optimizer): Optimiser for training
+        loss_fn (callable): Loss function
+        scheduler (optional): Curriculum scheduler
+             For changing data difficulty over epochs, usually for synthetic data.
+        epochs_run (int): Number of epochs already run (for resuming training)
+        metrics (list): List of dicts recording training metrics per epoch
+    """
+
+    def __init__(self, cfg, overwrite=False):
+
+        set_seed(cfg.experiment.random_seed)
+
+        self.cfg = cfg
+        self.overwrite = overwrite        
+        # Setup GPU device and distributed training
+        self.distributed, self.device, self.rank, self.local_rank = setup_distributed()
+        self.is_main = (self.rank == 0)
+
+        self.save_dir = setup_save_dir(cfg, overwrite=overwrite, mode='train', is_main_process=self.is_main)
+
+        dataloaders, self.scheduler = setup_data(cfg, mode="train")
+        self.train_loader = dataloaders['train']
+        self.val_loader = dataloaders['val']
+        
+        self.model = setup_model(cfg, device=self.device, mode='train')
+
+        self.optimiser = setup_optimiser(cfg, self.model)
+        self.loss_fn = setup_loss_function(cfg)
+
+        self.epochs_run = 0
+        
+        if os.path.isfile(cfg.model.checkpoint):
+            checkpoint = load_checkpoint(cfg.model.checkpoint, self.model, self.optimiser)
+            self.epochs_run = checkpoint['epoch']
+
+        if self.distributed:
+            self.model = DDP(self.model, device_ids=[self.local_rank])
+
+        self.metrics = []
+
+    def train(self):
+        """
+        Main training loop
+        """
+        num_epochs = self.cfg.training.epochs
+        patience = self.cfg.training.patience
+        log_interval = self.cfg.logging.log_interval
+        plot_examples_flag = self.cfg.experiment.plot_examples
+
+        best_val_loss = float('inf')
+        epochs_no_improve = 0
+        stop_training = False
+
+        for epoch in range(self.epochs_run, num_epochs):
+
+            train_loss = self._run_epoch(epoch)
+            val_loss = self._val(epoch)
+
+            if self.distributed:
+                val_loss = self._reduce_mean(val_loss)
+
+
+            self._record_metrics(epoch, train_loss, val_loss, best_val_loss)
+
+            # Early stopping and best model saving
+            if self.rank == 0:
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    epochs_no_improve = 0
+                
+                    checkpoint_path = self.save_dir / "checkpoints" / "best_model.pt"
+                    save_checkpoint(self.model, self.optimiser, epoch, val_loss, checkpoint_path)
+                else:
+                    epochs_no_improve += 1
+
+                if epochs_no_improve >= patience:
+                    stop_training = True
+
+            if self.distributed:
+                stop_tensor = torch.tensor(int(stop_training), device=self.device)
+                dist.broadcast(stop_tensor, src=0)
+                stop_training = bool(stop_tensor.item())
+
+            if stop_training:
+                break
+
+
+        logging.info("Training complete.")
+
+
+    def _run_epoch(self, epoch):
+
+        # Update curriculum learning scheduler if applicable
+        if self.scheduler is not None:
+            self.scheduler.update(epoch)
+
+        if self.distributed:
+            self.train_loader.sampler.set_epoch(epoch)
+        
+        self.model.train()
+        total_loss = 0.0
+        num_batches = len(self.train_loader)
+
+        for batch_idx, (inputs, targets) in enumerate(self.train_loader):
+            inputs = inputs.to(self.device)
+            targets = targets.to(self.device)
+
+            total_loss += self._run_batch(inputs, targets)
+        
+        return total_loss / num_batches
+    
+
+    def _run_batch(self, inputs, targets):
+        self.optimiser.zero_grad()
+        outputs = self.model(inputs)
+        loss = self.loss_fn(outputs, targets)
+        loss.backward()
+        self.optimiser.step()
+        return loss.item()
+    
+
+    def _val(self, epoch):
+        self.model.eval()
+        total_loss = 0.0
+        num_batches = len(self.val_loader)
+
+        with torch.no_grad():
+            for batch_idx, (inputs, targets) in enumerate(self.val_loader):
+                inputs = inputs.to(self.device)
+                targets = targets.to(self.device)
+
+                outputs = self.model(inputs)
+                loss = self.loss_fn(outputs, targets)
+
+                total_loss += loss.item()
+        
+        return total_loss / num_batches
+    
+
+    def _record_metrics(self, epoch, train_loss, val_loss, best_val_loss):
+        """
+        Record training metrics from a single epoch. Save to file if this is the main process.
+        """
+        record = {
+            "epoch": epoch,
+            "train_loss": train_loss,
+            "val_loss": val_loss,
+            "best_val_loss": best_val_loss
+        }
+        self.metrics.append(record)
+
+        if self.rank == 0:
+            fpath = self.save_dir / "results.csv"
+
+            write_header = not fpath.exists()
+            with open(fpath, "a", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=record.keys())
+                if write_header:
+                    writer.writeheader()
+                writer.writerow(record)
+
+
+    def _reduce_mean(self, value):
+        """Get the average of a tensor over all processes."""
+        tensor = torch.tensor(value, device=self.device)
+        dist.all_reduce(tensor, op=dist.ReduceOp.SUM)
+        tensor /= dist.get_world_size()
+        return tensor.item()
+    
+
+def main(cfg, overwrite=False):
+    
+    trainer = Trainer(cfg, overwrite=overwrite)
+    trainer.train()
+    destroy_process_group()
+    
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Train a model with a YAML config file")
+    parser.add_argument('--config', type=str, required=True)
+    parser.add_argument('--default', type=str, required=False, default="configs/default.yaml")
+    parser.add_argument('--overwrite', action='store_true')
+    args = parser.parse_args()
+
+    cfg = load_config(args.config, default_path=args.default)
+    setup_logging()
+    
+    main(cfg, overwrite=args.overwrite)

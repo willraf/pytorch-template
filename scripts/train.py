@@ -54,14 +54,7 @@ def main(cfg, overwrite=False):
     num_epochs = cfg.training.epochs
     plot_examples_flag = cfg.experiment.plot_examples
 
-    # setup basic logger
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-        handlers=[
-            logging.StreamHandler()
-        ]
-    )
+
 
     # Set the seed for reproducibility
     set_seed(random_seed)
@@ -196,8 +189,6 @@ def train(model, train_loader, optimizer, loss_function, epoch, log_interval=Non
                     )
                 )
         
-        torch.cuda.empty_cache()
-
     # Note that the average loss is computed differently to the test funciton, 
     # but they both compute the same thing: the avereage loss over all datapoints in the dataset
     return total_loss / num_batches
@@ -243,5 +234,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     cfg = load_config(args.config, default_path=args.default)
+    setup_logging()
     
     main(cfg, overwrite=args.overwrite)

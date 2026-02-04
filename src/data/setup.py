@@ -21,6 +21,8 @@ from src.data.curriculum_scheduler import CurriculumScheduler
 
 from torch.utils.data import DataLoader, random_split
 
+from torch.utils.data.distributed import DistributedSampler
+
 import logging
 
 
@@ -45,13 +47,14 @@ def find_dataset_using_name(dataset_name: str):
     raise ImportError(f"Expected class '{target_class_name}' in '{module_name}'.")
 
 
-def setup_data(cfg: OmegaConf, mode: str = "train"):
+def setup_data(cfg: OmegaConf, mode: str = "train", distributed: bool = False):
     """
     Setup data loaders and scheduler based on the configuration.
     
     Args:
         cfg (OmegaConf): Configuration object
         mode (str): One of ["train", "val", "test", "predict"]
+        distributed (bool): Whether to set up for distributed training
 
     Returns:
         dataloaders (dict): Dict of DataLoaders (train/val/test) as appropriate
@@ -74,21 +77,32 @@ def setup_data(cfg: OmegaConf, mode: str = "train"):
         dataset = dataset_class(cfg)
 
         train_dataset, val_dataset = random_split(dataset, [(1 - val_split), val_split])
-            
-        # Create DataLoaders for training and validation
+
+
+        if distributed:
+            train_sampler = DistributedSampler(train_dataset)
+            val_sampler = DistributedSampler(val_dataset)
+        else:
+            train_sampler = None
+            val_sampler = None
+
+
         dataloaders['train'] = DataLoader(
             train_dataset, 
             batch_size=train_batch_size, 
-            shuffle=True,
+            shuffle=(train_sampler is None),
+            sampler=train_sampler,
             num_workers=num_workers
         )
         dataloaders['val'] = DataLoader(
             val_dataset, 
             batch_size=val_batch_size, 
-            shuffle=True,
+            shuffle=(val_sampler is None),
+            sampler=val_sampler,
             num_workers=num_workers
         )
 
+        
         if cfg.data.curriculum.flag:
             scheduler = CurriculumScheduler(
                 dataset=dataset,

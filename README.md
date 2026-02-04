@@ -11,7 +11,7 @@ Check out directory-breakdown.md for in depth view of each file
 
 ## Example Workflow
 
-1. Fork the repo, then clone your fork locally
+1. Click "use this template" in top right, or create repo from template
 2. Setup a new virtual environment
 3. Create a dataset in "src/datasets/[dataset_name]_dataset.py". The class [DatasetName]Dataset must exist inside. Check dataloader logic in "src/datasets/setup.py"
 4. Create a model in "src/models/[model_name]_dataset.py". The class [ModelName]Model must exist inside. Check logic in "src/model/setup.py" works

@@ -23,6 +23,7 @@ from tqdm import tqdm
 import time
 from pathlib import Path
 import csv
+import os
 
 
 # TODO remove generic utils import *
@@ -37,6 +38,7 @@ import torch.multiprocessing as mp
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
+from torch.distributed import init_process_group, destroy_process_group
 
 class Trainer:
     """
@@ -72,6 +74,8 @@ class Trainer:
         # Setup GPU device and distributed training
         self.distributed, self.device, self.rank, self.local_rank = setup_distributed()
         print(f"Process {self.rank} using device {self.device}, distributed={self.distributed}, local_rank={self.local_rank}")
+        world_size = dist.get_world_size() if self.distributed else 1
+        print(f"World size: {world_size}")
         self.is_main = (self.rank == 0)
 
         self.save_dir = setup_save_dir(cfg, overwrite=overwrite, mode='train', is_main_process=self.is_main)
@@ -233,10 +237,71 @@ class Trainer:
         return tensor.item()
     
 
+    def find_max_batch_size(self, start_bs=32, max_trials=10, safety_factor=0.8) -> int:
+        """
+        Utility function to find the maximum batch size that fits in GPU memory.
+        Uses a binary search approach, starting from `start_bs` and doubling until OOM, then refining.
+
+        Args:
+            start_bs (int): Initial batch size to try
+            max_trials (int): Maximum number of trials to find the optimal batch size
+            safety_factor (float): Factor to reduce the found batch size by for safety margin
+        Returns:
+            int: Maximum batch size that fits in GPU memory with safety margin
+        """
+
+        if not self.is_main:
+            return None
+
+        logging.info("\n🔍 Starting batch size probe...\n")
+
+        batch_size = start_bs
+        last_good = start_bs
+
+        for trial in range(max_trials):
+            logging.info(f"Trial {trial+1}/{max_trials}: Testing batch size {batch_size}...")
+
+            dataloaders, _ = setup_data(cfg, mode="train")
+            loader = dataloaders['train']
+            
+            inputs, targets = next(iter(loader))
+
+            inputs = inputs.to(self.device)
+            targets = targets.to(self.device)
+
+
+            try:
+                torch.cuda.empty_cache()
+                torch.cuda.reset_peak_memory_stats()
+
+                self._run_batch(inputs, targets)
+
+                peak = torch.cuda.max_memory_allocated() / 1e9
+                logging.info(f"Success | Peak memory {peak:.2f} GB")
+
+                last_good = batch_size
+                batch_size *= 2
+
+            except RuntimeError as e:
+
+                if "out of memory" in str(e).lower():
+                    logging.info(f"OOM at batch size {batch_size}")
+                    break
+                else:
+                    raise
+
+        recommended = max(1, int(last_good * safety_factor))
+        logging.info(f"\nRecommended per-GPU batch size: {recommended}")
+
+        return recommended
+
+    
+
 def main(cfg, overwrite=False):
     
     trainer = Trainer(cfg, overwrite=overwrite)
-    trainer.train()
+    trainer.find_max_batch_size()
+    # trainer.train()
     if trainer.distributed:
         destroy_process_group()
     

@@ -16,7 +16,7 @@ class ExampleDataset(BaseDataset):
 
     def __len__(self):
         # Return the size of the dataset
-        return 1000  # Example size
+        return 10000  # Example size
 
     def __getitem__(self, idx):
         # return random data example

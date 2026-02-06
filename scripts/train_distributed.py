@@ -80,7 +80,7 @@ class Trainer:
 
         self.save_dir = setup_save_dir(cfg, overwrite=overwrite, mode='train', is_main_process=self.is_main)
 
-        dataloaders, self.scheduler = setup_data(cfg, mode="train")
+        dataloaders, self.scheduler = setup_data(cfg, mode="train", distributed=self.distributed)
         self.train_loader = dataloaders['train']
         self.val_loader = dataloaders['val']
         
@@ -300,8 +300,8 @@ class Trainer:
 def main(cfg, overwrite=False):
     
     trainer = Trainer(cfg, overwrite=overwrite)
-    trainer.find_max_batch_size()
-    # trainer.train()
+    # trainer.find_max_batch_size()
+    trainer.train()
     if trainer.distributed:
         destroy_process_group()
     
